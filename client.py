@@ -56,7 +56,6 @@ def source_client():
                 data += b"R"
             else:
                 continue
-            print(event.key.__dict__)
             data += str(event.key).strip("'").encode()
             print("Sending:", data.decode())
             # Send event to destination client
