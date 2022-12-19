@@ -56,6 +56,7 @@ def source_client():
                 data += b"R"
             else:
                 continue
+            print(event.key.__dict__)
             data += str(event.key).strip("'").encode()
             print("Sending:", data.decode())
             # Send event to destination client
@@ -109,7 +110,7 @@ def destination_client():
             
             # Send key to keyboard
             try:
-                keyboard.send(data[1:].decode(), do_press=press, do_release=release)
+                keyboard.send(keycode, do_press=press, do_release=release)
             except:
                 print("Failed to send key")
 
