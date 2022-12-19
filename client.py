@@ -8,8 +8,10 @@ import pynput
 MAGIC = b'0xgr33n134f'
 PORT = 7777
 
+
 def strip_magic(data: bytes, magic=MAGIC) -> bytes:
     return data[len(magic):]
+
 
 def source_client():
     # Create a socket object
@@ -44,6 +46,8 @@ def source_client():
     while True:
         with pynput.keyboard.Events() as events:
             event = events.get()
+
+            # Parse type of key event, appending P for press, R for release, and E for exit
             if event is None:
                 continue
             if event.key == pynput.keyboard.Key.esc:
@@ -56,9 +60,17 @@ def source_client():
                 data += b"R"
             else:
                 continue
-            data += str(event.key).strip("'").encode()
-            print("Sending:", data.decode())
+
+            # Clean up keycode
+            keycode = str(event.key).strip("'")
+            if keycode.startswith("Key."):
+                keycode = keycode[4:]
+            if keycode.endswith("_r"):
+                keycode = keycode[:-2]
+            data += keycode.encode()
+
             # Send event to destination client
+            print("Sending:", data.decode())
             s.sendto(dest_nonce + data, dest_addr)
 
     print("Exiting")
@@ -98,21 +110,13 @@ def destination_client():
             else:
                 print("Received somthing weird:", data.decode())
                 continue
-
             keycode = data[1:].decode()
-            # Clean up keycode
-            if keycode.startswith("Key."):
-                keycode = keycode[4:]
-            if keycode.endswith("_r"):
-                keycode = keycode[:-2]
-            print("Acting on:", keycode)
-            
             # Send key to keyboard
+            print("Sending", keycode, "to keyboard")
             try:
                 keyboard.send(keycode, do_press=press, do_release=release)
             except:
                 print("Failed to send key")
-
 
 
 if __name__ == '__main__':
