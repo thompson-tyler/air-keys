@@ -1,0 +1,3 @@
+## The following requirements were added by pip freeze:
+keyboard==0.13.5
+pynput==1.7.6
