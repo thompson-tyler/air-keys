@@ -92,10 +92,8 @@ def destination_client():
                 print("Client exited")
                 break
             elif data.startswith(b"P"):
-                print("Pressed:", data[1:].decode())
                 press = True
             elif data.startswith(b"R"):
-                print("Released:", data[1:].decode())
                 release = True
             else:
                 print("Received somthing weird:", data.decode())
@@ -107,6 +105,7 @@ def destination_client():
                 keycode = keycode[4:]
             if keycode.endswith("_r"):
                 keycode = keycode[:-2]
+            print("Acting on:", keycode)
             
             # Send key to keyboard
             try:
