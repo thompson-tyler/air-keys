@@ -72,6 +72,7 @@ def destination_client():
     # Generate random nonce
     nonce = secrets.token_bytes(16)
 
+    print("Waiting for source client broadcast")
     while True:
         data, addr = s.recvfrom(1024)
         if data.startswith(MAGIC):
