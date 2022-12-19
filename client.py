@@ -86,17 +86,34 @@ def destination_client():
         data, addr = s.recvfrom(1024)
         if data.startswith(nonce):
             data = strip_magic(data, nonce)
+            press = False
+            release = False
             if data.startswith(b"E"):
                 print("Client exited")
                 break
             elif data.startswith(b"P"):
                 print("Pressed:", data[1:].decode())
-                keyboard.press(data[1:].decode())
+                press = True
             elif data.startswith(b"R"):
                 print("Released:", data[1:].decode())
-                keyboard.release(data[1:].decode())
+                release = True
             else:
                 print("Received somthing weird:", data.decode())
+                continue
+
+            keycode = data[1:].decode()
+            # Clean up keycode
+            if keycode.startswith("Key."):
+                keycode = keycode[4:]
+            if keycode.endswith("_r"):
+                keycode = keycode[:-2]
+            
+            # Send key to keyboard
+            try:
+                keyboard.send(data[1:].decode(), do_press=press, do_release=release)
+            except:
+                print("Failed to send key")
+
 
 
 if __name__ == '__main__':
