@@ -115,6 +115,9 @@ def destination_client():
     # Receive messages from the source client
     while True:
         data = com_sock.recv(PACK_SIZE)
+        if (len(data) == 0):
+            print("Client disconnected")
+            break
         buf += data
         if len(buf) >= PACK_SIZE:
             data = buf[:PACK_SIZE]
@@ -122,7 +125,7 @@ def destination_client():
             press = False
             release = False
             if data.startswith(b"E"):
-                print("Client exited")
+                print("Client disconnected")
                 break
             elif data.startswith(b"P"):
                 press = True
@@ -148,6 +151,7 @@ if __name__ == '__main__':
     if choice == 1:
         source_client()
     elif choice == 2:
-        destination_client()
+        while True:
+            destination_client()
     else:
         exit()
