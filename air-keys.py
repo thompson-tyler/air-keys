@@ -119,14 +119,14 @@ def destination_client():
             print("Client disconnected")
             break
         buf += data
-        if len(buf) >= PACK_SIZE:
+        while len(buf) >= PACK_SIZE:
             data = buf[:PACK_SIZE]
             buf = buf[PACK_SIZE:]
             press = False
             release = False
             if data.startswith(b"E"):
                 print("Client disconnected")
-                break
+                return
             elif data.startswith(b"P"):
                 press = True
             elif data.startswith(b"R"):
