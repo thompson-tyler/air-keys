@@ -1,7 +1,5 @@
-from time import sleep
-from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM, SOL_SOCKET, SO_BROADCAST, gethostbyname, gethostname
+from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM, SOL_SOCKET, SO_BROADCAST
 import select
-import secrets
 import keyboard
 import pynput
 
@@ -16,6 +14,15 @@ def strip_magic(data: bytes, magic=MAGIC) -> bytes:
 
 def pad_data(data: bytes, size=PACK_SIZE) -> bytes:
     return data + b" " * (size - len(data))
+
+
+def clean_keycode(keycode: str) -> str:
+    keycode = keycode.strip("'")
+    if keycode.startswith("Key."):
+        keycode = keycode[4:]
+    if keycode.endswith("_r"):
+        keycode = keycode[:-2]
+    return keycode
 
 
 def source_client():
@@ -41,8 +48,11 @@ def source_client():
         if s_sock in ready[0]:
             conn, addr = s_sock.accept()
             print("Received connection from:", addr)
-            com_sock = conn
-            break
+            if input("Accept connection? (y/n): ") == "y":
+                com_sock = conn
+                break
+            else:
+                conn.close()
 
     broad_sock.close()
     s_sock.close()
@@ -51,41 +61,21 @@ def source_client():
         print("ERROR: Destination socket not set")
         exit()
     
-    while True:
-        with pynput.keyboard.Events() as events:
-            event = events.get()
+    def send_key(key: str, type: str):
+        data = type.encode()
+        data += clean_keycode(key).encode()
 
-            # Parse type of key event, appending P for press, R for release, and E for exit
-            if event is None:
-                continue
-            if event.key == pynput.keyboard.Key.backspace:
-                print("Exiting")
-                com_sock.send(pad_data(b"E"))
-                break
-            data = b""
-            if isinstance(event, pynput.keyboard.Events.Press):
-                data += b"P"
-            elif isinstance(event, pynput.keyboard.Events.Release):
-                data += b"R"
-            else:
-                continue
+        # Pad data to PACK_SIZE
+        data = pad_data(data)[:PACK_SIZE]
 
-            # Clean up keycode
-            keycode = str(event.key).strip("'")
-            if keycode.startswith("Key."):
-                keycode = keycode[4:]
-            if keycode.endswith("_r"):
-                keycode = keycode[:-2]
-            data += keycode.encode()
-
-            # Pad data to PACK_SIZE
-            data = pad_data(data)
-
-            # Send event to destination client
-            print("Sending:", data.decode())
-            com_sock.send(data)
-
-    com_sock.close()
+        # Send event to destination client
+        print("Sending:", data.decode())
+        com_sock.send(data)
+    
+    with pynput.keyboard.Listener(
+        on_press=(lambda key: send_key(str(key), "P")),
+        on_release=(lambda key: send_key(str(key), "R"))) as listener:
+        listener.join()
         
 
 def destination_client():
@@ -147,7 +137,10 @@ if __name__ == '__main__':
     print("1) Source client")
     print("2) Destination client")
     print("3) Exit")
-    choice = int(input("Enter your choice: "))
+    try:
+        choice = int(input("Enter your choice: "))
+    except:
+        exit()
     if choice == 1:
         source_client()
     elif choice == 2:
