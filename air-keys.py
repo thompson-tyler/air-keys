@@ -2,10 +2,12 @@ from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM, SOL_SOCKET, SO_BROA
 import select
 import keyboard
 import pynput
+import secrets
 
-MAGIC = b'0xgr33n134f'
+MAGIC = b'gr33n134f'
 BROAD_PORT = 7777
 PACK_SIZE = 16
+CONFIRM_CODE_LEN = 4
 
 
 def strip_magic(data: bytes, magic=MAGIC) -> bytes:
@@ -26,36 +28,43 @@ def clean_keycode(keycode: str) -> str:
 
 
 def source_client():
-    # Create the UDP broadcast socket
+    # Create a UDP socket for receiving broadcasts
     broad_sock = socket(AF_INET, SOCK_DGRAM)
-    broad_sock.bind(('', 0))
+    broad_sock.bind(('', BROAD_PORT))
     broad_sock.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
 
-    # Create the TCP socket for communication
-    s_sock = socket(AF_INET, SOCK_STREAM)
-    s_sock.listen(1)
-    s_sock_port = s_sock.getsockname()[1]
-
-    print("Broadcasting myself")
-
-    com_sock = None
+    # Create a TCP socket for communication
+    com_sock = socket(AF_INET, SOCK_STREAM)
 
     while True:
-        print("...")
-        broad_sock.sendto(MAGIC + str(s_sock_port).encode(), ('<broadcast>', BROAD_PORT))
-        # Check if the destination client sent a response
-        ready = select.select([s_sock], [], [], 2)
-        if s_sock in ready[0]:
-            conn, addr = s_sock.accept()
-            print("Received connection from:", addr)
-            if input("Accept connection? (y/n): ") == "y":
-                com_sock = conn
-                break
-            else:
-                conn.close()
+        print("Waiting for destination broadcast")
+        data, addr = broad_sock.recvfrom(1024)
 
+        # Check if broadcast is from this program
+        if not data.startswith(MAGIC):
+            continue
+
+        # Parse nonce and TCP port
+        data = strip_magic(data).decode()
+        nonce = data[:CONFIRM_CODE_LEN]
+        try:
+            com_port = int(data[CONFIRM_CODE_LEN:])
+        except:
+            # Got a non-numeric port
+            continue
+
+        # Confirm that the destination client is the one we want
+        print("Received destination broadcast")
+        print("Does this code match the one on the destination client?")
+        print(nonce)
+        if input("y/n: ").lower() != "y":
+            continue
+        addr = (addr[0], com_port)
+        com_sock.connect(addr)
+        print("Connected to destination client")
+        break
+    
     broad_sock.close()
-    s_sock.close()
     
     if com_sock is None:
         print("ERROR: Destination socket not set")
@@ -79,29 +88,34 @@ def source_client():
         
 
 def destination_client():
-    # Create a UDP socket for receiving broadcasts
+    # Create the UDP broadcast socket
     broad_sock = socket(AF_INET, SOCK_DGRAM)
-    broad_sock.bind(('', BROAD_PORT))
+    broad_sock.bind(('', 0))
     broad_sock.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
     
-    # Create a TCP socket for communication
-    com_sock = socket(AF_INET, SOCK_STREAM)
+    # Create the TCP socket for communication
+    s_sock = socket(AF_INET, SOCK_STREAM)
+    s_sock.listen(1)
+    s_sock_port = s_sock.getsockname()[1]
 
-    print("Waiting for source client broadcast")
+    com_sock = None
+    nonce = secrets.token_urlsafe(CONFIRM_CODE_LEN)[:CONFIRM_CODE_LEN].upper()
+
     while True:
-        data, addr = broad_sock.recvfrom(1024)
-        if data.startswith(MAGIC):
-            com_port = int(strip_magic(data).decode())
-            print("Received client broadcast")
-            print("Connecting to:", addr)
-            addr = (addr[0], com_port)
-            com_sock.connect(addr)
+        print("Broadcasting myself:", nonce)
+        broad_sock.sendto(MAGIC + nonce.encode() + str(s_sock_port).encode(), ('<broadcast>', BROAD_PORT))
+        # Check if a source client wants to connect
+        ready = select.select([s_sock], [], [], 2)
+        if s_sock in ready[0]:
+            conn, addr = s_sock.accept()
+            print("Received connection from:", addr)
+            com_sock = conn
             break
-    
-    broad_sock.close()
 
-    buf = b""
+    broad_sock.close()
+    s_sock.close()
     
+    buf = b""
     # Receive messages from the source client
     while True:
         data = com_sock.recv(PACK_SIZE)
@@ -116,6 +130,7 @@ def destination_client():
             release = False
             if data.startswith(b"E"):
                 print("Client disconnected")
+                com_sock.close()
                 return
             elif data.startswith(b"P"):
                 press = True
@@ -130,7 +145,7 @@ def destination_client():
             try:
                 keyboard.send(keycode, do_press=press, do_release=release)
             except:
-                print("Failed to send key")
+                print("Failed to send key:", keycode)
 
 
 if __name__ == '__main__':
