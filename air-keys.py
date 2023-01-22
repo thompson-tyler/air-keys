@@ -95,6 +95,7 @@ def destination_client():
     
     # Create the TCP socket for communication
     s_sock = socket(AF_INET, SOCK_STREAM)
+    s_sock.bind(('', 0))
     s_sock.listen(1)
     s_sock_port = s_sock.getsockname()[1]
 
