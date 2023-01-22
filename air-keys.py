@@ -104,6 +104,9 @@ def destination_client():
 
     while True:
         print("Broadcasting myself:", nonce)
+        # hack to flush stdout. Done because some machines don't flush stdout and it appears
+        # that the program is hanging
+        print("", end="")
         broad_sock.sendto(MAGIC + nonce.encode() + str(s_sock_port).encode(), ('<broadcast>', BROAD_PORT))
         # Check if a source client wants to connect
         ready = select.select([s_sock], [], [], 2)
