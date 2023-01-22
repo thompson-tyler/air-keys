@@ -3,6 +3,7 @@ import select
 import keyboard
 import pynput
 import secrets
+import sys
 
 MAGIC = b'gr33n134f'
 BROAD_PORT = 7777
@@ -106,7 +107,7 @@ def destination_client():
         print("Broadcasting myself:", nonce)
         # hack to flush stdout. Done because some machines don't flush stdout and it appears
         # that the program is hanging
-        print("", end="")
+        sys.stdout.flush()
         broad_sock.sendto(MAGIC + nonce.encode() + str(s_sock_port).encode(), ('<broadcast>', BROAD_PORT))
         # Check if a source client wants to connect
         ready = select.select([s_sock], [], [], 2)
