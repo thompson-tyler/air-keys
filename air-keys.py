@@ -144,7 +144,7 @@ def destination_client():
             else:
                 print("Received somthing weird:", data.decode())
                 continue
-            keycode = data[1:].decode().strip()
+            keycode = data[1:].decode().strip().lower()
             # Send key to keyboard
             print("Sending", keycode, "to keyboard")
             try:
