@@ -149,7 +149,7 @@ def destination_client():
             try:
                 keyboard.send(keycode, do_press=press, do_release=release)
             except:
-                print("Failed to send key:", keycode)
+                print("Failed to send key!")
 
 
 if __name__ == '__main__':
