@@ -146,7 +146,6 @@ def destination_client():
                 continue
             keycode = data[1:].decode().strip().lower()
             # Send key to keyboard
-            print("Sending", keycode, "to keyboard")
             try:
                 keyboard.send(keycode, do_press=press, do_release=release)
             except:
