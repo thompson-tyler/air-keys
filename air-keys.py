@@ -1,18 +1,26 @@
-from socket import socket, AF_INET, SOCK_DGRAM, SOCK_STREAM, SOL_SOCKET, SO_BROADCAST
+from socket import (
+    socket,
+    AF_INET,
+    SOCK_DGRAM,
+    SOCK_STREAM,
+    SOL_SOCKET,
+    SO_BROADCAST,
+)
 import select
 import keyboard
 import pynput
 import secrets
 import sys
+import argparse
 
-MAGIC = b'gr33n134f'
+MAGIC = b"gr33n134f"
 BROAD_PORT = 7777
 PACK_SIZE = 16
 CONFIRM_CODE_LEN = 4
 
 
 def strip_magic(data: bytes, magic=MAGIC) -> bytes:
-    return data[len(magic):]
+    return data[len(magic) :]
 
 
 def pad_data(data: bytes, size=PACK_SIZE) -> bytes:
@@ -31,7 +39,7 @@ def clean_keycode(keycode: str) -> str:
 def source_client():
     # Create a UDP socket for receiving broadcasts
     broad_sock = socket(AF_INET, SOCK_DGRAM)
-    broad_sock.bind(('', BROAD_PORT))
+    broad_sock.bind(("", BROAD_PORT))
     broad_sock.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
 
     # Create a TCP socket for communication
@@ -64,15 +72,22 @@ def source_client():
         com_sock.connect(addr)
         print("Connected to destination client")
         break
-    
+
     broad_sock.close()
-    
+
     if com_sock is None:
         print("ERROR: Destination socket not set")
         exit()
-    
-    def send_key(key: str, type: str):
-        data = type.encode()
+
+    # Setup key state table
+    key_state = {}
+
+    def send_key(key: str, event: str):
+        if key in key_state and key_state[key] == event:
+            return
+        key_state[key] = event
+
+        data = event.encode()
         data += clean_keycode(key).encode()
 
         # Pad data to PACK_SIZE
@@ -81,22 +96,23 @@ def source_client():
         # Send event to destination client
         print("Sending:", data.decode())
         com_sock.send(data)
-    
+
     with pynput.keyboard.Listener(
         on_press=(lambda key: send_key(str(key), "P")),
-        on_release=(lambda key: send_key(str(key), "R"))) as listener:
+        on_release=(lambda key: send_key(str(key), "R")),
+    ) as listener:
         listener.join()
-        
+
 
 def destination_client():
     # Create the UDP broadcast socket
     broad_sock = socket(AF_INET, SOCK_DGRAM)
-    broad_sock.bind(('', 0))
+    broad_sock.bind(("", 0))
     broad_sock.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
-    
+
     # Create the TCP socket for communication
     s_sock = socket(AF_INET, SOCK_STREAM)
-    s_sock.bind(('', 0))
+    s_sock.bind(("", 0))
     s_sock.listen(1)
     s_sock_port = s_sock.getsockname()[1]
 
@@ -108,7 +124,10 @@ def destination_client():
         # hack to flush stdout. Done because some machines don't flush stdout and it appears
         # that the program is hanging
         sys.stdout.flush()
-        broad_sock.sendto(MAGIC + nonce.encode() + str(s_sock_port).encode(), ('<broadcast>', BROAD_PORT))
+        broad_sock.sendto(
+            MAGIC + nonce.encode() + str(s_sock_port).encode(),
+            ("<broadcast>", BROAD_PORT),
+        )
         # Check if a source client wants to connect
         ready = select.select([s_sock], [], [], 2)
         if s_sock in ready[0]:
@@ -119,20 +138,18 @@ def destination_client():
 
     broad_sock.close()
     s_sock.close()
-    
+
     buf = b""
     # Receive messages from the source client
     while True:
         data = com_sock.recv(PACK_SIZE)
-        if (len(data) == 0):
+        if len(data) == 0:
             print("Client disconnected")
             break
         buf += data
         while len(buf) >= PACK_SIZE:
             data = buf[:PACK_SIZE]
             buf = buf[PACK_SIZE:]
-            press = False
-            release = False
             if data.startswith(b"E"):
                 print("Client disconnected")
                 com_sock.close()
@@ -140,19 +157,46 @@ def destination_client():
             elif data.startswith(b"P"):
                 press = True
             elif data.startswith(b"R"):
-                release = True
+                press = False
             else:
                 print("Received somthing weird:", data.decode())
                 continue
             keycode = data[1:].decode().strip().lower()
             # Send key to keyboard
             try:
-                keyboard.send(keycode, do_press=press, do_release=release)
+                if press:
+                    keyboard.press(keycode)
+                else:
+                    keyboard.release(keycode)
+                # keyboard.send(keycode, do_press=press, do_release=release)
             except:
                 print("Failed to send key!")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    # See if the user passed any arguments
+    parser = argparse.ArgumentParser(description="AirKeys")
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "-s", "--source", action="store_true", help="Start as source client"
+    )
+    group.add_argument(
+        "-d",
+        "--destination",
+        action="store_true",
+        help="Start as destination client",
+    )
+    args = parser.parse_args()
+
+    # If the user passed an argument, start the appropriate client
+    if args.source:
+        source_client()
+        exit()
+    elif args.destination:
+        while True:
+            destination_client()
+
+    # The client didn't pass any arguments! Ask the user what they want to do
     print("1) Source client")
     print("2) Destination client")
     print("3) Exit")
