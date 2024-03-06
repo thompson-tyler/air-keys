@@ -79,14 +79,7 @@ def source_client():
         print("ERROR: Destination socket not set")
         exit()
 
-    # Setup key state table
-    key_state = {}
-
     def send_key(key: str, event: str):
-        if key in key_state and key_state[key] == event:
-            return
-        key_state[key] = event
-
         data = event.encode()
         data += clean_keycode(key).encode()
 
@@ -94,7 +87,7 @@ def source_client():
         data = pad_data(data)[:PACK_SIZE]
 
         # Send event to destination client
-        print("Sending:", data.decode())
+        # print("Sending:", data.decode())
         com_sock.send(data)
 
     with pynput.keyboard.Listener(
